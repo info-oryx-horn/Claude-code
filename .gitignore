@@ -1,0 +1,10 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Generated outputs from build_targets.py
+data/targets_*.csv
+data/raw/
+data/seen_ids.txt
