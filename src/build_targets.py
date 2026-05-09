@@ -22,6 +22,12 @@ from rapidfuzz import fuzz
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from config.targets import (
+    OWNER_AGE_HIGH,
+    OWNER_AGE_LOW,
+    OWNER_AGE_MID,
+    PRICE_FLAG_BARGAIN_MULTIPLE,
+    PRICE_FLAG_FAIR_MULTIPLE,
+    PRICE_FLAG_MARKET_MULTIPLE,
     SDE_FROM_REVENUE_FALLBACK,
     SDE_MAX_USD,
     SDE_MIN_USD,
@@ -29,6 +35,14 @@ from config.targets import (
     SDE_SWEET_SPOT_MIN_USD,
     TARGET_STATES,
     TARGET_TRADES,
+)
+
+OWNER_AGE_CACHE_PATH = ROOT / "data" / "owner_age_cache.csv"
+ENRICH_COLUMNS = (
+    "owner_name",
+    "owner_age_estimate",
+    "est_years_in_business",
+    "owner_age_source",
 )
 
 RETIREMENT_RE = re.compile(
@@ -131,6 +145,72 @@ def dedupe(df: pd.DataFrame) -> pd.DataFrame:
     return df[keep_mask].reset_index(drop=True)
 
 
+def enrich_owner_age(df: pd.DataFrame, cache_path: Path) -> pd.DataFrame:
+    """Merge owner-age data from data/owner_age_cache.csv.
+
+    Cache schema: listing_id, business_name, owner_name, owner_age_estimate,
+    est_years_in_business, source, notes. Match by listing_id first, then by
+    case-insensitive business_name (skipping "Confidential").
+    """
+    if not cache_path.exists():
+        for col in ENRICH_COLUMNS:
+            df[col] = ""
+        return df
+
+    cache = pd.read_csv(cache_path, dtype=str, keep_default_na=False)
+    if "source" in cache.columns:
+        cache = cache.rename(columns={"source": "owner_age_source"})
+    for col in ENRICH_COLUMNS:
+        if col not in cache.columns:
+            cache[col] = ""
+
+    by_id: dict[str, dict[str, str]] = {}
+    by_name: dict[str, dict[str, str]] = {}
+    for _, row in cache.iterrows():
+        entry = {col: str(row.get(col, "") or "") for col in ENRICH_COLUMNS}
+        lid = str(row.get("listing_id", "") or "").strip()
+        if lid:
+            by_id[lid] = entry
+        bn = str(row.get("business_name", "") or "").lower().strip()
+        if bn and bn != "confidential" and bn not in by_name:
+            by_name[bn] = entry
+
+    def lookup(row):
+        lid = str(row.get("listing_id", "") or "")
+        if lid in by_id:
+            return by_id[lid]
+        bn = str(row.get("business_name", "") or "").lower().strip()
+        if bn in by_name:
+            return by_name[bn]
+        return {col: "" for col in ENRICH_COLUMNS}
+
+    enriched = df.apply(lookup, axis=1, result_type="expand")
+    for col in ENRICH_COLUMNS:
+        df[col] = enriched[col]
+    return df
+
+
+def compute_price_flags(df: pd.DataFrame) -> pd.DataFrame:
+    sde = pd.to_numeric(df["annual_sde_usd"], errors="coerce")
+    price = pd.to_numeric(df["asking_price_usd"], errors="coerce")
+    multiple = (price / sde).where(sde.notna() & price.notna() & (sde > 0))
+    df["sde_multiple"] = multiple.round(2)
+
+    def classify(m):
+        if pd.isna(m):
+            return "unknown"
+        if m < PRICE_FLAG_BARGAIN_MULTIPLE:
+            return "bargain"
+        if m < PRICE_FLAG_FAIR_MULTIPLE:
+            return "fair"
+        if m < PRICE_FLAG_MARKET_MULTIPLE:
+            return "market"
+        return "overpriced"
+
+    df["price_flag"] = df["sde_multiple"].apply(classify)
+    return df
+
+
 def apply_filters(df: pd.DataFrame) -> pd.DataFrame:
     in_trades = df["subcategory"].isin(TARGET_TRADES)
     in_states = df["location_state"].isin(TARGET_STATES)
@@ -151,9 +231,28 @@ def score_row(row) -> tuple[int, str]:
     reasons: list[str] = []
     notes = row.get("notes") or ""
 
-    if RETIREMENT_RE.search(notes):
+    # Owner age — prefer cached hard data; fall back to retirement regex.
+    age_str = str(row.get("owner_age_estimate") or "").strip()
+    age_score = 0
+    if age_str:
+        try:
+            age = int(age_str)
+        except ValueError:
+            age = None
+        if age is not None:
+            if age >= OWNER_AGE_HIGH:
+                age_score = 30
+            elif age >= OWNER_AGE_MID:
+                age_score = 20
+            elif age >= OWNER_AGE_LOW:
+                age_score = 10
+            if age_score:
+                score += age_score
+                reasons.append(f"owner_age_{age}")
+    if age_score == 0 and RETIREMENT_RE.search(notes):
         score += 30
         reasons.append("retirement_signal")
+
     if LIFE_EVENT_RE.search(notes):
         score += 15
         reasons.append("life_event")
@@ -164,9 +263,19 @@ def score_row(row) -> tuple[int, str]:
         score -= 5
         reasons.append("absentee_-5")
 
-    m = YEARS_RE.search(notes)
-    if m:
-        years = int(m.group(1))
+    # Years in business — prefer cached value, fall back to notes regex.
+    years_str = str(row.get("est_years_in_business") or "").strip()
+    years: int | None = None
+    if years_str:
+        try:
+            years = int(years_str)
+        except ValueError:
+            years = None
+    if years is None:
+        m = YEARS_RE.search(notes)
+        if m:
+            years = int(m.group(1))
+    if years is not None:
         if years >= 30:
             score += 20
             reasons.append(f"{years}yrs")
@@ -187,6 +296,14 @@ def score_row(row) -> tuple[int, str]:
         score += 5
         reasons.append("trade_landscaping")
 
+    flag = row.get("price_flag") or ""
+    if flag == "bargain":
+        score += 10
+        reasons.append("bargain_price")
+    elif flag == "overpriced":
+        score -= 5
+        reasons.append("overpriced_-5")
+
     return score, "|".join(reasons)
 
 
@@ -205,6 +322,12 @@ OUTPUT_COLUMNS = [
     "annual_ebitda_usd",
     "annual_sde_usd",
     "asking_price_usd",
+    "sde_multiple",
+    "price_flag",
+    "owner_name",
+    "owner_age_estimate",
+    "est_years_in_business",
+    "owner_age_source",
     "financials_period",
     "broker_name",
     "listing_url",
@@ -243,6 +366,9 @@ def main() -> int:
     if df.empty:
         return 0
 
+    df = enrich_owner_age(df, OWNER_AGE_CACHE_PATH)
+    df = compute_price_flags(df)
+
     scores = df.apply(score_row, axis=1, result_type="expand")
     df["motivation_score"] = scores[0].astype(int)
     df["score_reasons"] = scores[1]
@@ -264,6 +390,9 @@ def main() -> int:
                 "subcategory",
                 "location_state",
                 "annual_sde_usd",
+                "sde_multiple",
+                "price_flag",
+                "owner_age_estimate",
                 "opportunity_title",
             ]
         ].to_string(index=False)

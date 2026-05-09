@@ -36,3 +36,18 @@ SDE_SWEET_SPOT_MAX_USD = 900_000
 # filter only (not for the score). Home-service businesses typically run
 # 15–25% SDE margin; 0.20 is a defensible midpoint.
 SDE_FROM_REVENUE_FALLBACK = 0.20
+
+# Asking-price / SDE multiple thresholds for the price_flag column.
+# Below BARGAIN -> "bargain"; below FAIR -> "fair"; below MARKET -> "market";
+# above MARKET -> "overpriced".
+PRICE_FLAG_BARGAIN_MULTIPLE = 2.5
+PRICE_FLAG_FAIR_MULTIPLE = 3.5
+PRICE_FLAG_MARKET_MULTIPLE = 4.5
+
+# Owner-age scoring thresholds (used when owner_age_estimate is known).
+OWNER_AGE_HIGH = 65   # +30 (max retirement signal)
+OWNER_AGE_MID = 60    # +20
+OWNER_AGE_LOW = 55    # +10
+
+# Minimum motivation score that auto-adds a target to data/outreach.csv on sync.
+OUTREACH_SYNC_THRESHOLD = 30
