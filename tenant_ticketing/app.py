@@ -1,8 +1,10 @@
 import os
+import uuid
 from datetime import datetime
 from functools import wraps
+from pathlib import Path
 
-from flask import Flask, flash, g, redirect, render_template, request, session, url_for
+from flask import Flask, flash, g, redirect, render_template, request, send_from_directory, session, url_for
 
 import db
 
@@ -14,6 +16,51 @@ app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me")
 # management. Unset locally -> login skips the check, so `python app.py` still
 # works out of the box for development.
 ACCESS_CODE = os.environ.get("ACCESS_CODE", "")
+
+# Overridable so a deployment can point uploaded ticket photos at a persistent
+# disk, same as DB_PATH.
+UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR", db.DB_PATH.parent / "uploads"))
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+ALLOWED_PHOTO_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
+app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024  # 2 photos, generous headroom
+
+
+def _save_photo(file_storage):
+    """Save an uploaded photo under a random name; return the filename or None."""
+    if not file_storage or not file_storage.filename:
+        return None
+    ext = file_storage.filename.rsplit(".", 1)[-1].lower() if "." in file_storage.filename else ""
+    if ext not in ALLOWED_PHOTO_EXTENSIONS:
+        flash(f'"{file_storage.filename}" isn\'t a supported photo type and was skipped.')
+        return None
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    file_storage.save(UPLOAD_DIR / filename)
+    return filename
+
+
+def _create_ticket(tenant, description, photo_1, photo_2):
+    conn = db.get_conn()
+    with conn:
+        max_priority = conn.execute("SELECT MAX(priority) AS m FROM tickets").fetchone()["m"]
+        next_priority = (max_priority or 0) + 1
+        conn.execute(
+            """
+            INSERT INTO tickets
+                (tenant_email, lease_id, property, description, status, priority, created_at, photo_1, photo_2)
+            VALUES (?, ?, ?, ?, 'in_queue', ?, ?, ?, ?)
+            """,
+            (
+                tenant["email"],
+                tenant["lease_id"],
+                tenant["property"],
+                description,
+                next_priority,
+                db.now_iso(),
+                photo_1,
+                photo_2,
+            ),
+        )
+    conn.close()
 
 
 @app.before_request
@@ -110,27 +157,17 @@ def create_ticket():
         flash("Please describe the issue.")
         return redirect(url_for("tenant_dashboard"))
 
-    conn = db.get_conn()
-    with conn:
-        max_priority = conn.execute("SELECT MAX(priority) AS m FROM tickets").fetchone()["m"]
-        next_priority = (max_priority or 0) + 1
-        conn.execute(
-            """
-            INSERT INTO tickets (tenant_email, lease_id, property, description, status, priority, created_at)
-            VALUES (?, ?, ?, ?, 'in_queue', ?, ?)
-            """,
-            (
-                g.user["email"],
-                g.user["lease_id"],
-                g.user["property"],
-                description,
-                next_priority,
-                db.now_iso(),
-            ),
-        )
-    conn.close()
+    photo_1 = _save_photo(request.files.get("photo_1"))
+    photo_2 = _save_photo(request.files.get("photo_2"))
+    _create_ticket(g.user, description, photo_1, photo_2)
     flash("Ticket submitted.")
     return redirect(url_for("tenant_dashboard"))
+
+
+@app.route("/uploads/<path:filename>")
+@login_required()
+def uploaded_file(filename):
+    return send_from_directory(UPLOAD_DIR, filename)
 
 
 # ------------------------------------------------------------- handyman ---
@@ -270,7 +307,29 @@ def landlord_report():
         "avg_resolution": format_duration(avg_resolution),
         "avg_response": format_duration(avg_response),
     }
-    return render_template("landlord_report.html", tickets=tickets, stats=stats)
+    tenants = db.list_tenants()
+    return render_template("landlord_report.html", tickets=tickets, stats=stats, tenants=tenants)
+
+
+@app.route("/landlord/tickets", methods=["POST"])
+@login_required("landlord")
+def create_ticket_for_tenant():
+    tenant_email = request.form.get("tenant_email", "").strip().lower()
+    description = request.form.get("description", "").strip()
+    tenant = db.get_user(tenant_email)
+
+    if tenant is None or tenant["role"] != "tenant":
+        flash("Pick a tenant from the list.")
+        return redirect(url_for("landlord_report"))
+    if not description:
+        flash("Please describe the issue.")
+        return redirect(url_for("landlord_report"))
+
+    photo_1 = _save_photo(request.files.get("photo_1"))
+    photo_2 = _save_photo(request.files.get("photo_2"))
+    _create_ticket(tenant, description, photo_1, photo_2)
+    flash(f"Ticket logged for {tenant['name']}.")
+    return redirect(url_for("landlord_report"))
 
 
 @app.route("/landlord/tenants", methods=["POST"])

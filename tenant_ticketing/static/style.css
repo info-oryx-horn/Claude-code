@@ -151,3 +151,25 @@ th { color: var(--ink-70); font-weight: 600; font-size: 0.72rem; text-transform:
 }
 .stat-num { display: block; font-size: 1.65rem; font-weight: 700; color: var(--blue-deep); }
 .stat-label { display: block; font-size: 0.75rem; color: var(--ink-70); margin-top: 0.25rem; }
+
+.photo-thumbs { display: flex; gap: 0.4rem; margin-top: 0.4rem; }
+.photo-thumbs img {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 0.6rem;
+  border: 1px solid var(--ink-10);
+  display: block;
+}
+
+.photo-field { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.5rem; }
+.photo-field > div { flex: 1 1 160px; }
+.photo-field label { font-size: 0.75rem; }
+input[type="file"] {
+  width: 100%;
+  font-size: 0.82rem;
+  padding: 0.5rem;
+  border: 1px dashed var(--ink-15);
+  border-radius: 0.75rem;
+  background: var(--cream-wash);
+}

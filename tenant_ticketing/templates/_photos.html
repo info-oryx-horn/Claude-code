@@ -1,0 +1,13 @@
+{% macro photo_thumbs(t) %}
+  {% if t['photo_1'] or t['photo_2'] %}
+    <div class="photo-thumbs">
+      {% for p in [t['photo_1'], t['photo_2']] %}
+        {% if p %}
+          <a href="{{ url_for('uploaded_file', filename=p) }}" target="_blank" rel="noopener">
+            <img src="{{ url_for('uploaded_file', filename=p) }}" alt="Ticket photo">
+          </a>
+        {% endif %}
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endmacro %}

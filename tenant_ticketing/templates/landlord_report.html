@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_photos.html" as photos %}
 {% block title %}Landlord Report{% endblock %}
 {% block content %}
   <h1>Portfolio Report</h1>
@@ -10,6 +11,34 @@
     <div class="stat"><span class="stat-num">{{ stats.complete }}</span><span class="stat-label">Complete</span></div>
     <div class="stat"><span class="stat-num">{{ stats.avg_response }}</span><span class="stat-label">Avg. time to start</span></div>
     <div class="stat"><span class="stat-num">{{ stats.avg_resolution }}</span><span class="stat-label">Avg. time to resolution</span></div>
+  </div>
+
+  <div class="card">
+    <h2>Log a ticket for a tenant</h2>
+    <p class="muted">For issues a tenant told you about directly — texted, called, or mentioned before this
+      app existed. This creates the same kind of ticket the tenant would submit themselves.</p>
+    <form method="post" action="{{ url_for('create_ticket_for_tenant') }}" enctype="multipart/form-data">
+      <label for="tenant_email">Tenant</label>
+      <select id="tenant_email" name="tenant_email" required>
+        <option value="" disabled selected>Choose a tenant&hellip;</option>
+        {% for tenant in tenants %}
+          <option value="{{ tenant['email'] }}">{{ tenant['name'] }}{% if tenant['property'] %} — {{ tenant['property'] }}{% endif %}</option>
+        {% endfor %}
+      </select>
+      <label for="landlord_description">Describe the issue</label>
+      <textarea id="landlord_description" name="description" rows="3" placeholder="e.g. Called about a leaking faucet" required></textarea>
+      <div class="photo-field">
+        <div>
+          <label for="landlord_photo_1">Photo 1 (optional)</label>
+          <input type="file" id="landlord_photo_1" name="photo_1" accept="image/*">
+        </div>
+        <div>
+          <label for="landlord_photo_2">Photo 2 (optional)</label>
+          <input type="file" id="landlord_photo_2" name="photo_2" accept="image/*">
+        </div>
+      </div>
+      <button type="submit">Log ticket</button>
+    </form>
   </div>
 
   <div class="card">
@@ -34,7 +63,10 @@
         <tr>
           <td>{{ t['property'] or '-' }}</td>
           <td>{{ t['tenant_name'] }}</td>
-          <td>{{ t['description'] }}</td>
+          <td>
+            {{ t['description'] }}
+            {{ photos.photo_thumbs(t) }}
+          </td>
           <td>{{ t['created_at'][:10] }}</td>
           <td><span class="badge badge-{{ t['status'] }}">{{ t['status']|replace('_', ' ')|title }}</span></td>
           <td>{{ t['completed_at'][:10] if t['completed_at'] else '-' }}</td>

@@ -13,5 +13,6 @@ data/seen_ids.txt
 # Remove this line if you want to commit your CRM state to git.
 data/outreach.csv
 
-# Tenant ticketing app's local database (seeded/created at runtime).
+# Tenant ticketing app's local database and uploaded ticket photos (created at runtime).
 tenant_ticketing/ticketing.db
+tenant_ticketing/uploads/

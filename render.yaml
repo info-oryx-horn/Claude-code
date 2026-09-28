@@ -13,6 +13,8 @@ services:
         sync: false
       - key: DB_PATH
         value: /var/data/ticketing.db
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
     disk:
       name: upkeep-data
       mountPath: /var/data

@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS tickets (
     created_at TEXT NOT NULL,
     started_at TEXT,
     completed_at TEXT,
+    photo_1 TEXT,
+    photo_2 TEXT,
     FOREIGN KEY (tenant_email) REFERENCES users (email)
 );
 """
@@ -58,10 +60,21 @@ def get_conn():
     return conn
 
 
+def _migrate(conn):
+    # Existing deployments created `tickets` before photo_1/photo_2 existed.
+    # CREATE TABLE IF NOT EXISTS above is a no-op for them, so add the columns
+    # by hand if they're missing (data-preserving).
+    existing_cols = {row["name"] for row in conn.execute("PRAGMA table_info(tickets)")}
+    for col in ("photo_1", "photo_2"):
+        if col not in existing_cols:
+            conn.execute(f"ALTER TABLE tickets ADD COLUMN {col} TEXT")
+
+
 def init_db():
     conn = get_conn()
     with conn:
         conn.executescript(SCHEMA)
+        _migrate(conn)
         for email, name, role, lease_id, property_ in SEED_USERS:
             conn.execute(
                 """
@@ -79,6 +92,13 @@ def get_user(email):
     row = conn.execute("SELECT * FROM users WHERE email = ?", (email.lower().strip(),)).fetchone()
     conn.close()
     return row
+
+
+def list_tenants():
+    conn = get_conn()
+    rows = conn.execute("SELECT * FROM users WHERE role = 'tenant' ORDER BY name").fetchall()
+    conn.close()
+    return rows
 
 
 def add_tenant(email, name, lease_id, property_):
