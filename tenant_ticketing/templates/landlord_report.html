@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Landlord Report{% endblock %}
+{% block content %}
+  <h1>Portfolio Report</h1>
+
+  <div class="stat-grid">
+    <div class="stat"><span class="stat-num">{{ stats.total }}</span><span class="stat-label">Total tickets</span></div>
+    <div class="stat"><span class="stat-num">{{ stats.in_queue }}</span><span class="stat-label">In queue</span></div>
+    <div class="stat"><span class="stat-num">{{ stats.in_process }}</span><span class="stat-label">In process</span></div>
+    <div class="stat"><span class="stat-num">{{ stats.complete }}</span><span class="stat-label">Complete</span></div>
+    <div class="stat"><span class="stat-num">{{ stats.avg_response }}</span><span class="stat-label">Avg. time to start</span></div>
+    <div class="stat"><span class="stat-num">{{ stats.avg_resolution }}</span><span class="stat-label">Avg. time to resolution</span></div>
+  </div>
+
+  <div class="card">
+    <h2>Add a tenant</h2>
+    <p class="muted">New tenants can log in with their email as soon as they're added here.</p>
+    <form method="post" action="{{ url_for('add_tenant') }}" class="inline-form">
+      <input type="text" name="name" placeholder="Tenant name" required>
+      <input type="email" name="email" placeholder="Email" required>
+      <input type="text" name="lease_id" placeholder="Lease ID">
+      <input type="text" name="property" placeholder="Property">
+      <button type="submit">Add tenant</button>
+    </form>
+  </div>
+
+  <h2>All tickets</h2>
+  <table>
+    <thead>
+      <tr><th>Property</th><th>Tenant</th><th>Description</th><th>Submitted</th><th>Status</th><th>Resolved</th></tr>
+    </thead>
+    <tbody>
+      {% for t in tickets %}
+        <tr>
+          <td>{{ t['property'] or '-' }}</td>
+          <td>{{ t['tenant_name'] }}</td>
+          <td>{{ t['description'] }}</td>
+          <td>{{ t['created_at'][:10] }}</td>
+          <td><span class="badge badge-{{ t['status'] }}">{{ t['status']|replace('_', ' ')|title }}</span></td>
+          <td>{{ t['completed_at'][:10] if t['completed_at'] else '-' }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

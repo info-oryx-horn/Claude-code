@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Maintenance Tickets{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">Maintenance Tickets</span>
+    {% if g.user %}
+      <span class="whoami">{{ g.user['name'] }} &middot; {{ g.user['role']|capitalize }}</span>
+      <a class="logout" href="{{ url_for('logout') }}">Log out</a>
+    {% endif %}
+  </header>
+
+  <main class="content">
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="flash">
+          {% for message in messages %}<p>{{ message }}</p>{% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
