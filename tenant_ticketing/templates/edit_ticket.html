@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Edit Ticket{% endblock %}
 {% block content %}
-  <a href="{{ url_for('landlord_report') }}" class="back-link">&larr; Back to report</a>
+  <a href="{{ url_for('landlord_report' if g.user['role'] == 'landlord' else 'handyman_dashboard') }}" class="back-link">&larr; Back</a>
   <h1>Edit ticket</h1>
 
   <div class="card">
@@ -24,6 +24,9 @@
         <option value="in_process" {% if ticket['status'] == 'in_process' %}selected{% endif %}>In Process</option>
         <option value="complete" {% if ticket['status'] == 'complete' %}selected{% endif %}>Complete</option>
       </select>
+
+      <label for="notes">Notes</label>
+      <textarea id="notes" name="notes" rows="3" placeholder="e.g. Replaced the washer, should be fixed now">{{ ticket['notes'] or '' }}</textarea>
 
       <div class="photo-field">
         <div>

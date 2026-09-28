@@ -180,6 +180,22 @@ td.photos { width: 1%; }
 .edit-thumb { margin: 0.4rem 0; }
 .edit-thumb img { width: 64px; height: 64px; }
 
+.ticket-note {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: var(--ink-70);
+}
+.ticket-note strong { color: var(--ink); font-weight: 600; }
+
+.complete-note {
+  display: block;
+  width: 170px;
+  min-height: 2.4rem;
+  font-size: 0.78rem;
+  padding: 0.4rem 0.55rem;
+  margin: 0 0 0.4rem;
+}
+
 .flash {
   background: var(--sage);
   color: var(--sage-deep);

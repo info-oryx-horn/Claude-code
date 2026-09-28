@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS tickets (
     completed_at TEXT,
     photo_1 TEXT,
     photo_2 TEXT,
+    notes TEXT,
     FOREIGN KEY (tenant_email) REFERENCES users (email)
 );
 """
@@ -65,7 +66,7 @@ def _migrate(conn):
     # CREATE TABLE IF NOT EXISTS above is a no-op for them, so add the columns
     # by hand if they're missing (data-preserving).
     existing_cols = {row["name"] for row in conn.execute("PRAGMA table_info(tickets)")}
-    for col in ("photo_1", "photo_2"):
+    for col in ("photo_1", "photo_2", "notes"):
         if col not in existing_cols:
             conn.execute(f"ALTER TABLE tickets ADD COLUMN {col} TEXT")
 

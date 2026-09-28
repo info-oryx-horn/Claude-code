@@ -63,7 +63,10 @@
         <tr>
           <td>{{ t['property'] or '-' }}</td>
           <td>{{ t['tenant_name'] }}</td>
-          <td>{{ t['description'] }}</td>
+          <td>
+            {{ t['description'] }}
+            {% if t['notes'] %}<p class="ticket-note"><strong>Note:</strong> {{ t['notes'] }}</p>{% endif %}
+          </td>
           <td class="photos">{{ photos.photo_thumbs(t) }}</td>
           <td class="date">{{ t['created_at'][:10] }}</td>
           <td class="status"><span class="badge badge-{{ t['status'] }}">{{ t['status']|replace('_', ' ')|title }}</span></td>

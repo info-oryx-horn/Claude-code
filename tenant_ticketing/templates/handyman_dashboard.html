@@ -5,10 +5,38 @@
   <h1>Ticket Queue</h1>
   <p class="muted">Use the arrows to reprioritize. Move a ticket through its status as you work it.</p>
 
+  <div class="card">
+    <h2>Log a ticket for a tenant</h2>
+    <p class="muted">For issues a tenant told you about directly — texted, called, or mentioned on-site.
+      This creates the same kind of ticket the tenant would submit themselves.</p>
+    <form method="post" action="{{ url_for('create_ticket_for_tenant') }}" enctype="multipart/form-data">
+      <label for="tenant_email">Tenant</label>
+      <select id="tenant_email" name="tenant_email" required>
+        <option value="" disabled selected>Choose a tenant&hellip;</option>
+        {% for tenant in tenants %}
+          <option value="{{ tenant['email'] }}">{{ tenant['name'] }}{% if tenant['property'] %} — {{ tenant['property'] }}{% endif %}</option>
+        {% endfor %}
+      </select>
+      <label for="handyman_description">Describe the issue</label>
+      <textarea id="handyman_description" name="description" rows="3" placeholder="e.g. Mentioned a leaking faucet while I was on-site" required></textarea>
+      <div class="photo-field">
+        <div>
+          <label for="handyman_photo_1">Photo 1 (optional)</label>
+          <input type="file" id="handyman_photo_1" name="photo_1" accept="image/*">
+        </div>
+        <div>
+          <label for="handyman_photo_2">Photo 2 (optional)</label>
+          <input type="file" id="handyman_photo_2" name="photo_2" accept="image/*">
+        </div>
+      </div>
+      <button type="submit">Log ticket</button>
+    </form>
+  </div>
+
   {% if active %}
     <table>
       <thead>
-        <tr><th></th><th>Property</th><th>Tenant</th><th>Description</th><th>Photos</th><th class="date">Submitted</th><th class="status">Status</th><th></th></tr>
+        <tr><th></th><th>Property</th><th>Tenant</th><th>Description</th><th>Photos</th><th class="date">Submitted</th><th class="status">Status</th><th></th><th></th></tr>
       </thead>
       <tbody>
         {% for t in active %}
@@ -25,7 +53,10 @@
             </td>
             <td>{{ t['property'] or '-' }}</td>
             <td>{{ t['tenant_name'] }}</td>
-            <td>{{ t['description'] }}</td>
+            <td>
+              {{ t['description'] }}
+              {% if t['notes'] %}<p class="ticket-note"><strong>Note:</strong> {{ t['notes'] }}</p>{% endif %}
+            </td>
             <td class="photos">{{ photos.photo_thumbs(t) }}</td>
             <td class="date">{{ t['created_at'][:10] }}</td>
             <td class="status"><span class="badge badge-{{ t['status'] }}">{{ t['status']|replace('_', ' ')|title }}</span></td>
@@ -36,10 +67,12 @@
                   <button type="submit">Start</button>
                 {% elif t['status'] == 'in_process' %}
                   <input type="hidden" name="status" value="complete">
+                  <textarea name="note" class="complete-note" placeholder="Note (optional)">{{ t['notes'] or '' }}</textarea>
                   <button type="submit">Complete</button>
                 {% endif %}
               </form>
             </td>
+            <td><a class="link-btn" href="{{ url_for('edit_ticket_form', ticket_id=t['id']) }}">Edit</a></td>
           </tr>
         {% endfor %}
       </tbody>
@@ -52,16 +85,20 @@
   {% if completed %}
     <table>
       <thead>
-        <tr><th>Property</th><th>Tenant</th><th>Description</th><th>Photos</th><th class="date">Completed</th></tr>
+        <tr><th>Property</th><th>Tenant</th><th>Description</th><th>Photos</th><th class="date">Completed</th><th></th></tr>
       </thead>
       <tbody>
         {% for t in completed %}
           <tr>
             <td>{{ t['property'] or '-' }}</td>
             <td>{{ t['tenant_name'] }}</td>
-            <td>{{ t['description'] }}</td>
+            <td>
+              {{ t['description'] }}
+              {% if t['notes'] %}<p class="ticket-note"><strong>Note:</strong> {{ t['notes'] }}</p>{% endif %}
+            </td>
             <td class="photos">{{ photos.photo_thumbs(t) }}</td>
             <td class="date">{{ t['completed_at'][:10] }}</td>
+            <td><a class="link-btn" href="{{ url_for('edit_ticket_form', ticket_id=t['id']) }}">Edit</a></td>
           </tr>
         {% endfor %}
       </tbody>

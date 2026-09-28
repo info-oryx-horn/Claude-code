@@ -203,7 +203,8 @@ def handyman_dashboard():
         """
     ).fetchall()
     conn.close()
-    return render_template("handyman_dashboard.html", active=active, completed=completed)
+    tenants = db.list_tenants()
+    return render_template("handyman_dashboard.html", active=active, completed=completed, tenants=tenants)
 
 
 @app.route("/handyman/tickets/<int:ticket_id>/status", methods=["POST"])
@@ -230,6 +231,10 @@ def update_status(ticket_id):
         if new_status == "in_queue":
             updates["started_at"] = None
             updates["completed_at"] = None
+
+        note = request.form.get("note", "").strip()
+        if note:
+            updates["notes"] = note
 
         set_clause = ", ".join(f"{col} = ?" for col in updates)
         conn.execute(
@@ -319,49 +324,55 @@ def landlord_report():
     return render_template("landlord_report.html", tickets=tickets, stats=stats, tenants=tenants)
 
 
-@app.route("/landlord/tickets", methods=["POST"])
-@login_required("landlord")
+@app.route("/tickets/for-tenant", methods=["POST"])
+@login_required("landlord", "handyman")
 def create_ticket_for_tenant():
+    redirect_target = _dashboard_for(g.user["role"])
     tenant_email = request.form.get("tenant_email", "").strip().lower()
     description = request.form.get("description", "").strip()
     tenant = db.get_user(tenant_email)
 
     if tenant is None or tenant["role"] != "tenant":
         flash("Pick a tenant from the list.")
-        return redirect(url_for("landlord_report"))
+        return redirect(url_for(redirect_target))
     if not description:
         flash("Please describe the issue.")
-        return redirect(url_for("landlord_report"))
+        return redirect(url_for(redirect_target))
 
     photo_1 = _save_photo(request.files.get("photo_1"))
     photo_2 = _save_photo(request.files.get("photo_2"))
     _create_ticket(tenant, description, photo_1, photo_2)
     flash(f"Ticket logged for {tenant['name']}.")
-    return redirect(url_for("landlord_report"))
+    return redirect(url_for(redirect_target))
 
 
-@app.route("/landlord/tickets/<int:ticket_id>/edit", methods=["GET"])
-@login_required("landlord")
+def _dashboard_for(role):
+    return "landlord_report" if role == "landlord" else "handyman_dashboard"
+
+
+@app.route("/tickets/<int:ticket_id>/edit", methods=["GET"])
+@login_required("landlord", "handyman")
 def edit_ticket_form(ticket_id):
     conn = db.get_conn()
     ticket = conn.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
     conn.close()
     if ticket is None:
         flash("Ticket not found.")
-        return redirect(url_for("landlord_report"))
+        return redirect(url_for(_dashboard_for(g.user["role"])))
     tenants = db.list_tenants()
     return render_template("edit_ticket.html", ticket=ticket, tenants=tenants)
 
 
-@app.route("/landlord/tickets/<int:ticket_id>/edit", methods=["POST"])
-@login_required("landlord")
+@app.route("/tickets/<int:ticket_id>/edit", methods=["POST"])
+@login_required("landlord", "handyman")
 def edit_ticket(ticket_id):
+    redirect_target = _dashboard_for(g.user["role"])
     conn = db.get_conn()
     ticket = conn.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
     if ticket is None:
         conn.close()
         flash("Ticket not found.")
-        return redirect(url_for("landlord_report"))
+        return redirect(url_for(redirect_target))
 
     tenant_email = request.form.get("tenant_email", "").strip().lower()
     description = request.form.get("description", "").strip()
@@ -387,6 +398,7 @@ def edit_ticket(ticket_id):
         "property": tenant["property"],
         "description": description,
         "status": status,
+        "notes": request.form.get("notes", "").strip() or None,
     }
     if status != ticket["status"]:
         if status == "in_process" and ticket["started_at"] is None:
@@ -412,7 +424,7 @@ def edit_ticket(ticket_id):
         conn.execute(f"UPDATE tickets SET {set_clause} WHERE id = ?", (*updates.values(), ticket_id))
     conn.close()
     flash("Ticket updated.")
-    return redirect(url_for("landlord_report"))
+    return redirect(url_for(redirect_target))
 
 
 @app.route("/landlord/tenants", methods=["POST"])
