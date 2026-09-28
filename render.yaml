@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: upkeep
+    runtime: python
+    rootDir: tenant_ticketing
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ACCESS_CODE
+        sync: false
+      - key: DB_PATH
+        value: /var/data/ticketing.db
+    disk:
+      name: upkeep-data
+      mountPath: /var/data
+      sizeGB: 1

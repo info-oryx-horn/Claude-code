@@ -1,8 +1,11 @@
+import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "ticketing.db"
+# Overridable so a deployment can point this at a persistent disk (e.g. Render's
+# mounted volume) instead of the container's ephemeral local filesystem.
+DB_PATH = Path(os.environ.get("DB_PATH", Path(__file__).parent / "ticketing.db"))
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (

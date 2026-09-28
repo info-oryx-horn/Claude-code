@@ -9,6 +9,12 @@ import db
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me")
 
+# Shared passphrase everyone (tenants, handyman, landlord) enters alongside their
+# email. Keeps random internet traffic out without building real password/account
+# management. Unset locally -> login skips the check, so `python app.py` still
+# works out of the box for development.
+ACCESS_CODE = os.environ.get("ACCESS_CODE", "")
+
 
 @app.before_request
 def load_user():
@@ -62,13 +68,17 @@ def index():
 def login():
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
+        code = request.form.get("access_code", "").strip()
+        if ACCESS_CODE and code != ACCESS_CODE:
+            flash("That access code isn't right.")
+            return redirect(url_for("login"))
         user = db.get_user(email)
         if user is None:
             flash("That email isn't set up yet. Ask your landlord to add you.")
             return redirect(url_for("login"))
         session["email"] = user["email"]
         return redirect(url_for("index"))
-    return render_template("login.html")
+    return render_template("login.html", access_code_required=bool(ACCESS_CODE))
 
 
 @app.route("/logout")
