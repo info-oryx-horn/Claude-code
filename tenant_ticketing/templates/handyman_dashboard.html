@@ -8,7 +8,7 @@
   {% if active %}
     <table>
       <thead>
-        <tr><th></th><th>Property</th><th>Tenant</th><th>Description</th><th>Submitted</th><th>Status</th><th></th></tr>
+        <tr><th></th><th>Property</th><th>Tenant</th><th>Description</th><th>Photos</th><th class="date">Submitted</th><th class="status">Status</th><th></th></tr>
       </thead>
       <tbody>
         {% for t in active %}
@@ -25,12 +25,10 @@
             </td>
             <td>{{ t['property'] or '-' }}</td>
             <td>{{ t['tenant_name'] }}</td>
-            <td>
-              {{ t['description'] }}
-              {{ photos.photo_thumbs(t) }}
-            </td>
-            <td>{{ t['created_at'][:10] }}</td>
-            <td><span class="badge badge-{{ t['status'] }}">{{ t['status']|replace('_', ' ')|title }}</span></td>
+            <td>{{ t['description'] }}</td>
+            <td class="photos">{{ photos.photo_thumbs(t) }}</td>
+            <td class="date">{{ t['created_at'][:10] }}</td>
+            <td class="status"><span class="badge badge-{{ t['status'] }}">{{ t['status']|replace('_', ' ')|title }}</span></td>
             <td class="actions">
               <form method="post" action="{{ url_for('update_status', ticket_id=t['id']) }}">
                 {% if t['status'] == 'in_queue' %}
@@ -54,18 +52,16 @@
   {% if completed %}
     <table>
       <thead>
-        <tr><th>Property</th><th>Tenant</th><th>Description</th><th>Completed</th></tr>
+        <tr><th>Property</th><th>Tenant</th><th>Description</th><th>Photos</th><th class="date">Completed</th></tr>
       </thead>
       <tbody>
         {% for t in completed %}
           <tr>
             <td>{{ t['property'] or '-' }}</td>
             <td>{{ t['tenant_name'] }}</td>
-            <td>
-              {{ t['description'] }}
-              {{ photos.photo_thumbs(t) }}
-            </td>
-            <td>{{ t['completed_at'][:10] }}</td>
+            <td>{{ t['description'] }}</td>
+            <td class="photos">{{ photos.photo_thumbs(t) }}</td>
+            <td class="date">{{ t['completed_at'][:10] }}</td>
           </tr>
         {% endfor %}
       </tbody>
