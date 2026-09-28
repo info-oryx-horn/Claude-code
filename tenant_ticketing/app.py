@@ -38,6 +38,14 @@ def _save_photo(file_storage):
     return filename
 
 
+def _delete_photo(filename):
+    if not filename:
+        return
+    path = UPLOAD_DIR / filename
+    if path.exists():
+        path.unlink()
+
+
 def _create_ticket(tenant, description, photo_1, photo_2):
     conn = db.get_conn()
     with conn:
@@ -329,6 +337,81 @@ def create_ticket_for_tenant():
     photo_2 = _save_photo(request.files.get("photo_2"))
     _create_ticket(tenant, description, photo_1, photo_2)
     flash(f"Ticket logged for {tenant['name']}.")
+    return redirect(url_for("landlord_report"))
+
+
+@app.route("/landlord/tickets/<int:ticket_id>/edit", methods=["GET"])
+@login_required("landlord")
+def edit_ticket_form(ticket_id):
+    conn = db.get_conn()
+    ticket = conn.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
+    conn.close()
+    if ticket is None:
+        flash("Ticket not found.")
+        return redirect(url_for("landlord_report"))
+    tenants = db.list_tenants()
+    return render_template("edit_ticket.html", ticket=ticket, tenants=tenants)
+
+
+@app.route("/landlord/tickets/<int:ticket_id>/edit", methods=["POST"])
+@login_required("landlord")
+def edit_ticket(ticket_id):
+    conn = db.get_conn()
+    ticket = conn.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
+    if ticket is None:
+        conn.close()
+        flash("Ticket not found.")
+        return redirect(url_for("landlord_report"))
+
+    tenant_email = request.form.get("tenant_email", "").strip().lower()
+    description = request.form.get("description", "").strip()
+    status = request.form.get("status", "").strip()
+    tenant = db.get_user(tenant_email)
+
+    if tenant is None or tenant["role"] != "tenant":
+        conn.close()
+        flash("Pick a tenant from the list.")
+        return redirect(url_for("edit_ticket_form", ticket_id=ticket_id))
+    if not description:
+        conn.close()
+        flash("Please describe the issue.")
+        return redirect(url_for("edit_ticket_form", ticket_id=ticket_id))
+    if status not in ("in_queue", "in_process", "complete"):
+        conn.close()
+        flash("Unknown status.")
+        return redirect(url_for("edit_ticket_form", ticket_id=ticket_id))
+
+    updates = {
+        "tenant_email": tenant["email"],
+        "lease_id": tenant["lease_id"],
+        "property": tenant["property"],
+        "description": description,
+        "status": status,
+    }
+    if status != ticket["status"]:
+        if status == "in_process" and ticket["started_at"] is None:
+            updates["started_at"] = db.now_iso()
+        if status == "complete" and ticket["completed_at"] is None:
+            updates["completed_at"] = db.now_iso()
+        if status == "in_queue":
+            updates["started_at"] = None
+            updates["completed_at"] = None
+
+    for slot in ("photo_1", "photo_2"):
+        if request.form.get(f"remove_{slot}"):
+            _delete_photo(ticket[slot])
+            updates[slot] = None
+        else:
+            uploaded = _save_photo(request.files.get(slot))
+            if uploaded:
+                _delete_photo(ticket[slot])
+                updates[slot] = uploaded
+
+    with conn:
+        set_clause = ", ".join(f"{col} = ?" for col in updates)
+        conn.execute(f"UPDATE tickets SET {set_clause} WHERE id = ?", (*updates.values(), ticket_id))
+    conn.close()
+    flash("Ticket updated.")
     return redirect(url_for("landlord_report"))
 
 

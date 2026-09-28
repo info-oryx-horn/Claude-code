@@ -56,7 +56,7 @@
   <h2>All tickets</h2>
   <table>
     <thead>
-      <tr><th>Property</th><th>Tenant</th><th>Description</th><th>Photos</th><th class="date">Submitted</th><th class="status">Status</th><th class="date">Resolved</th></tr>
+      <tr><th>Property</th><th>Tenant</th><th>Description</th><th>Photos</th><th class="date">Submitted</th><th class="status">Status</th><th class="date">Resolved</th><th></th></tr>
     </thead>
     <tbody>
       {% for t in tickets %}
@@ -68,6 +68,7 @@
           <td class="date">{{ t['created_at'][:10] }}</td>
           <td class="status"><span class="badge badge-{{ t['status'] }}">{{ t['status']|replace('_', ' ')|title }}</span></td>
           <td class="date">{{ t['completed_at'][:10] if t['completed_at'] else '-' }}</td>
+          <td class="date"><a class="link-btn" href="{{ url_for('edit_ticket_form', ticket_id=t['id']) }}">Edit</a></td>
         </tr>
       {% endfor %}
     </tbody>

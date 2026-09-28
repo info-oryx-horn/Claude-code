@@ -141,6 +141,45 @@ td.photos { width: 1%; }
 .actions form { display: inline; }
 .actions button { padding: 0.45rem 1rem; font-size: 0.8rem; }
 
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--ink-15);
+  background: var(--white);
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.link-btn:hover { background: var(--blue); border-color: var(--blue-deep); color: var(--blue-deep); }
+
+.back-link {
+  display: inline-block;
+  color: var(--blue-deep);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  margin-bottom: 0.5rem;
+}
+.back-link:hover { text-decoration: underline; }
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--ink-70);
+  margin: 0.35rem 0;
+}
+.checkbox-label input[type="checkbox"] { width: auto; }
+
+.edit-thumb { margin: 0.4rem 0; }
+.edit-thumb img { width: 64px; height: 64px; }
+
 .flash {
   background: var(--sage);
   color: var(--sage-deep);

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Edit Ticket{% endblock %}
+{% block content %}
+  <a href="{{ url_for('landlord_report') }}" class="back-link">&larr; Back to report</a>
+  <h1>Edit ticket</h1>
+
+  <div class="card">
+    <form method="post" action="{{ url_for('edit_ticket', ticket_id=ticket['id']) }}" enctype="multipart/form-data">
+      <label for="tenant_email">Tenant</label>
+      <select id="tenant_email" name="tenant_email" required>
+        {% for tenant in tenants %}
+          <option value="{{ tenant['email'] }}" {% if tenant['email'] == ticket['tenant_email'] %}selected{% endif %}>
+            {{ tenant['name'] }}{% if tenant['property'] %} — {{ tenant['property'] }}{% endif %}
+          </option>
+        {% endfor %}
+      </select>
+
+      <label for="description">Describe the issue</label>
+      <textarea id="description" name="description" rows="3" required>{{ ticket['description'] }}</textarea>
+
+      <label for="status">Status</label>
+      <select id="status" name="status" required>
+        <option value="in_queue" {% if ticket['status'] == 'in_queue' %}selected{% endif %}>In Queue</option>
+        <option value="in_process" {% if ticket['status'] == 'in_process' %}selected{% endif %}>In Process</option>
+        <option value="complete" {% if ticket['status'] == 'complete' %}selected{% endif %}>Complete</option>
+      </select>
+
+      <div class="photo-field">
+        <div>
+          <label for="photo_1">Photo 1</label>
+          {% if ticket['photo_1'] %}
+            <div class="photo-thumbs edit-thumb">
+              <a href="{{ url_for('uploaded_file', filename=ticket['photo_1']) }}" target="_blank" rel="noopener">
+                <img src="{{ url_for('uploaded_file', filename=ticket['photo_1']) }}" alt="Current photo 1">
+              </a>
+            </div>
+            <label class="checkbox-label"><input type="checkbox" name="remove_photo_1"> Remove this photo</label>
+          {% endif %}
+          <input type="file" id="photo_1" name="photo_1" accept="image/*">
+        </div>
+        <div>
+          <label for="photo_2">Photo 2</label>
+          {% if ticket['photo_2'] %}
+            <div class="photo-thumbs edit-thumb">
+              <a href="{{ url_for('uploaded_file', filename=ticket['photo_2']) }}" target="_blank" rel="noopener">
+                <img src="{{ url_for('uploaded_file', filename=ticket['photo_2']) }}" alt="Current photo 2">
+              </a>
+            </div>
+            <label class="checkbox-label"><input type="checkbox" name="remove_photo_2"> Remove this photo</label>
+          {% endif %}
+          <input type="file" id="photo_2" name="photo_2" accept="image/*">
+        </div>
+      </div>
+
+      <button type="submit">Save changes</button>
+    </form>
+  </div>
+{% endblock %}
