@@ -172,6 +172,59 @@ def create_ticket():
     return redirect(url_for("tenant_dashboard"))
 
 
+def _own_ticket_or_none(ticket_id):
+    """Fetch a ticket, but only if it belongs to the logged-in tenant."""
+    conn = db.get_conn()
+    ticket = conn.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
+    conn.close()
+    if ticket is None or ticket["tenant_email"] != g.user["email"]:
+        return None
+    return ticket
+
+
+@app.route("/tenant/tickets/<int:ticket_id>/edit", methods=["GET"])
+@login_required("tenant")
+def edit_own_ticket_form(ticket_id):
+    ticket = _own_ticket_or_none(ticket_id)
+    if ticket is None:
+        flash("Ticket not found.")
+        return redirect(url_for("tenant_dashboard"))
+    return render_template("edit_own_ticket.html", ticket=ticket)
+
+
+@app.route("/tenant/tickets/<int:ticket_id>/edit", methods=["POST"])
+@login_required("tenant")
+def edit_own_ticket(ticket_id):
+    ticket = _own_ticket_or_none(ticket_id)
+    if ticket is None:
+        flash("Ticket not found.")
+        return redirect(url_for("tenant_dashboard"))
+
+    description = request.form.get("description", "").strip()
+    if not description:
+        flash("Please describe the issue.")
+        return redirect(url_for("edit_own_ticket_form", ticket_id=ticket_id))
+
+    updates = {"description": description}
+    for slot in ("photo_1", "photo_2"):
+        if request.form.get(f"remove_{slot}"):
+            _delete_photo(ticket[slot])
+            updates[slot] = None
+        else:
+            uploaded = _save_photo(request.files.get(slot))
+            if uploaded:
+                _delete_photo(ticket[slot])
+                updates[slot] = uploaded
+
+    conn = db.get_conn()
+    with conn:
+        set_clause = ", ".join(f"{col} = ?" for col in updates)
+        conn.execute(f"UPDATE tickets SET {set_clause} WHERE id = ?", (*updates.values(), ticket_id))
+    conn.close()
+    flash("Ticket updated.")
+    return redirect(url_for("tenant_dashboard"))
+
+
 @app.route("/uploads/<path:filename>")
 @login_required()
 def uploaded_file(filename):
