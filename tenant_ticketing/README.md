@@ -21,6 +21,9 @@ handyman works a single prioritized queue, and the landlord gets a status report
 - **Photos**: whoever submits a ticket (tenant, or the landlord logging one for a tenant) can
   attach up to 2 photos. Everyone who can see the ticket (that tenant, the handyman, the
   landlord) sees thumbnails that open full-size in a new tab.
+- **Deleting a ticket** (landlord only) requires a reason. It's a soft delete: the ticket
+  disappears from every dashboard, but the record and the reason are kept in a "Deleted tickets"
+  log at the bottom of the landlord's report — nothing is permanently destroyed.
 
 Roles and the initial tenant roster are seeded from the lease roll into `db.py` on first run.
 

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Delete Ticket{% endblock %}
+{% block content %}
+  <a href="{{ url_for('landlord_report') }}" class="back-link">&larr; Back</a>
+  <h1>Delete ticket</h1>
+
+  <div class="card warning-card">
+    <p>This removes the ticket from every dashboard (yours, the handyman's, and the tenant's). It stays
+      on record in the deleted-tickets log below your report, along with the reason you give here.</p>
+  </div>
+
+  <div class="card">
+    <p class="muted" style="margin-top:0;"><strong>{{ ticket['description'] }}</strong></p>
+
+    <form method="post" action="{{ url_for('delete_ticket', ticket_id=ticket['id']) }}">
+      <label for="reason">Reason for deleting this ticket</label>
+      <textarea id="reason" name="reason" rows="3" placeholder="e.g. Duplicate of another ticket, tenant withdrew the request" required></textarea>
+      <button type="submit" class="btn-danger">Delete ticket</button>
+    </form>
+  </div>
+{% endblock %}

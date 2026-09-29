@@ -13,6 +13,8 @@
   --white: oklch(1 0 0);
   --amber: oklch(0.93 0.045 75);
   --amber-deep: oklch(0.5 0.11 70);
+  --danger: oklch(0.93 0.05 25);
+  --danger-deep: oklch(0.5 0.18 25);
   --shadow: oklch(0.22 0.025 235 / 12%);
 }
 
@@ -155,6 +157,19 @@ td.photos { width: 1%; }
   white-space: nowrap;
 }
 .link-btn:hover { background: var(--blue); border-color: var(--blue-deep); color: var(--blue-deep); }
+.link-btn.danger { color: var(--danger-deep); border-color: var(--danger); }
+.link-btn.danger:hover { background: var(--danger); border-color: var(--danger-deep); }
+
+.btn-danger {
+  background: var(--danger-deep);
+}
+.btn-danger:hover { opacity: 0.9; }
+
+.warning-card {
+  border-color: var(--danger);
+  background: var(--danger);
+}
+.warning-card p { color: var(--danger-deep); margin: 0; font-size: 0.88rem; }
 
 .back-link {
   display: inline-block;

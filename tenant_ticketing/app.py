@@ -49,7 +49,9 @@ def _delete_photo(filename):
 def _create_ticket(tenant, description, photo_1, photo_2):
     conn = db.get_conn()
     with conn:
-        max_priority = conn.execute("SELECT MAX(priority) AS m FROM tickets").fetchone()["m"]
+        max_priority = conn.execute(
+            "SELECT MAX(priority) AS m FROM tickets WHERE deleted_at IS NULL"
+        ).fetchone()["m"]
         next_priority = (max_priority or 0) + 1
         conn.execute(
             """
@@ -150,7 +152,7 @@ def logout():
 def tenant_dashboard():
     conn = db.get_conn()
     tickets = conn.execute(
-        "SELECT * FROM tickets WHERE tenant_email = ? ORDER BY created_at DESC",
+        "SELECT * FROM tickets WHERE tenant_email = ? AND deleted_at IS NULL ORDER BY created_at DESC",
         (g.user["email"],),
     ).fetchall()
     conn.close()
@@ -175,7 +177,9 @@ def create_ticket():
 def _own_ticket_or_none(ticket_id):
     """Fetch a ticket, but only if it belongs to the logged-in tenant."""
     conn = db.get_conn()
-    ticket = conn.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
+    ticket = conn.execute(
+        "SELECT * FROM tickets WHERE id = ? AND deleted_at IS NULL", (ticket_id,)
+    ).fetchone()
     conn.close()
     if ticket is None or ticket["tenant_email"] != g.user["email"]:
         return None
@@ -242,7 +246,7 @@ def handyman_dashboard():
         """
         SELECT tickets.*, users.name AS tenant_name
         FROM tickets JOIN users ON users.email = tickets.tenant_email
-        WHERE status != 'complete'
+        WHERE status != 'complete' AND deleted_at IS NULL
         ORDER BY priority ASC
         """
     ).fetchall()
@@ -250,7 +254,7 @@ def handyman_dashboard():
         """
         SELECT tickets.*, users.name AS tenant_name
         FROM tickets JOIN users ON users.email = tickets.tenant_email
-        WHERE status = 'complete'
+        WHERE status = 'complete' AND deleted_at IS NULL
         ORDER BY completed_at DESC
         LIMIT 25
         """
@@ -270,7 +274,9 @@ def update_status(ticket_id):
 
     conn = db.get_conn()
     with conn:
-        ticket = conn.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
+        ticket = conn.execute(
+            "SELECT * FROM tickets WHERE id = ? AND deleted_at IS NULL", (ticket_id,)
+        ).fetchone()
         if ticket is None:
             conn.close()
             flash("Ticket not found.")
@@ -304,19 +310,29 @@ def move_ticket(ticket_id):
     direction = request.form.get("direction")
     conn = db.get_conn()
     with conn:
-        current = conn.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
+        current = conn.execute(
+            "SELECT * FROM tickets WHERE id = ? AND deleted_at IS NULL", (ticket_id,)
+        ).fetchone()
         if current is None:
             conn.close()
             return redirect(url_for("handyman_dashboard"))
 
         if direction == "up":
             neighbor = conn.execute(
-                "SELECT * FROM tickets WHERE priority < ? AND status != 'complete' ORDER BY priority DESC LIMIT 1",
+                """
+                SELECT * FROM tickets
+                WHERE priority < ? AND status != 'complete' AND deleted_at IS NULL
+                ORDER BY priority DESC LIMIT 1
+                """,
                 (current["priority"],),
             ).fetchone()
         else:
             neighbor = conn.execute(
-                "SELECT * FROM tickets WHERE priority > ? AND status != 'complete' ORDER BY priority ASC LIMIT 1",
+                """
+                SELECT * FROM tickets
+                WHERE priority > ? AND status != 'complete' AND deleted_at IS NULL
+                ORDER BY priority ASC LIMIT 1
+                """,
                 (current["priority"],),
             ).fetchone()
 
@@ -338,7 +354,16 @@ def landlord_report():
         """
         SELECT tickets.*, users.name AS tenant_name
         FROM tickets JOIN users ON users.email = tickets.tenant_email
+        WHERE deleted_at IS NULL
         ORDER BY created_at DESC
+        """
+    ).fetchall()
+    deleted_tickets = conn.execute(
+        """
+        SELECT tickets.*, users.name AS tenant_name
+        FROM tickets JOIN users ON users.email = tickets.tenant_email
+        WHERE deleted_at IS NOT NULL
+        ORDER BY deleted_at DESC
         """
     ).fetchall()
     conn.close()
@@ -374,7 +399,13 @@ def landlord_report():
         "avg_response": format_duration(avg_response),
     }
     tenants = db.list_tenants()
-    return render_template("landlord_report.html", tickets=tickets, stats=stats, tenants=tenants)
+    return render_template(
+        "landlord_report.html",
+        tickets=tickets,
+        deleted_tickets=deleted_tickets,
+        stats=stats,
+        tenants=tenants,
+    )
 
 
 @app.route("/tickets/for-tenant", methods=["POST"])
@@ -407,7 +438,9 @@ def _dashboard_for(role):
 @login_required("landlord", "handyman")
 def edit_ticket_form(ticket_id):
     conn = db.get_conn()
-    ticket = conn.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
+    ticket = conn.execute(
+        "SELECT * FROM tickets WHERE id = ? AND deleted_at IS NULL", (ticket_id,)
+    ).fetchone()
     conn.close()
     if ticket is None:
         flash("Ticket not found.")
@@ -421,7 +454,9 @@ def edit_ticket_form(ticket_id):
 def edit_ticket(ticket_id):
     redirect_target = _dashboard_for(g.user["role"])
     conn = db.get_conn()
-    ticket = conn.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
+    ticket = conn.execute(
+        "SELECT * FROM tickets WHERE id = ? AND deleted_at IS NULL", (ticket_id,)
+    ).fetchone()
     if ticket is None:
         conn.close()
         flash("Ticket not found.")
@@ -478,6 +513,47 @@ def edit_ticket(ticket_id):
     conn.close()
     flash("Ticket updated.")
     return redirect(url_for(redirect_target))
+
+
+@app.route("/tickets/<int:ticket_id>/delete", methods=["GET"])
+@login_required("landlord")
+def delete_ticket_form(ticket_id):
+    conn = db.get_conn()
+    ticket = conn.execute(
+        "SELECT * FROM tickets WHERE id = ? AND deleted_at IS NULL", (ticket_id,)
+    ).fetchone()
+    conn.close()
+    if ticket is None:
+        flash("Ticket not found.")
+        return redirect(url_for("landlord_report"))
+    return render_template("delete_ticket.html", ticket=ticket)
+
+
+@app.route("/tickets/<int:ticket_id>/delete", methods=["POST"])
+@login_required("landlord")
+def delete_ticket(ticket_id):
+    reason = request.form.get("reason", "").strip()
+    conn = db.get_conn()
+    ticket = conn.execute(
+        "SELECT * FROM tickets WHERE id = ? AND deleted_at IS NULL", (ticket_id,)
+    ).fetchone()
+    if ticket is None:
+        conn.close()
+        flash("Ticket not found.")
+        return redirect(url_for("landlord_report"))
+    if not reason:
+        conn.close()
+        flash("A reason is required to delete a ticket.")
+        return redirect(url_for("delete_ticket_form", ticket_id=ticket_id))
+
+    with conn:
+        conn.execute(
+            "UPDATE tickets SET deleted_at = ?, deleted_reason = ? WHERE id = ?",
+            (db.now_iso(), reason, ticket_id),
+        )
+    conn.close()
+    flash("Ticket deleted.")
+    return redirect(url_for("landlord_report"))
 
 
 @app.route("/landlord/tenants", methods=["POST"])
